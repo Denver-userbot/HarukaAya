@@ -4,9 +4,9 @@ from typing import List, Dict
 from telegram import MAX_MESSAGE_LENGTH, InlineKeyboardButton, Bot, ParseMode
 from telegram.error import TelegramError
 
-from haruka import LOAD, NO_LOAD
-from haruka.modules.translations.strings import tld
-from telegram.ext import CommandHandler, Filters, MessageHandler, CallbackQueryHandler
+from punisher import LOAD, NO_LOAD
+
+emp = []
 
 
 class EqInlineKeyboardButton(InlineKeyboardButton):
@@ -41,35 +41,44 @@ def split_message(msg: str) -> List[str]:
         return result
 
 
-def paginate_modules(chat_id, page_n: int, module_dict: Dict, prefix, chat=None) -> List:
+def paginate_modules(page_n: int, module_dict: Dict, prefix, chat=None) -> List:
     if not chat:
         modules = sorted(
-            [EqInlineKeyboardButton(tld(chat_id, x.__mod_name__),
+            [EqInlineKeyboardButton(x.__mod_name__,
                                     callback_data="{}_module({})".format(prefix, x.__mod_name__.lower())) for x
              in module_dict.values()])
     else:
         modules = sorted(
-            [EqInlineKeyboardButton(tld(chat_id, x.__mod_name__),
+            [EqInlineKeyboardButton(x.__mod_name__,
                                     callback_data="{}_module({},{})".format(prefix, chat, x.__mod_name__.lower())) for x
              in module_dict.values()])
 
-    pairs = list(zip(modules[::2], modules[1::2]))
+    for i in range(0, len(modules), 3):
+        try:
+            non = (modules[i], modules[i+1], modules[i+2])
+            emp.append(non)
+        except IndexError:
+            if len(modules) % 3 == 2:
+                non = (modules[i], modules[i+1], '')
+                emp.append(non)
+            else:
+                non = (modules[i], '', '')
+                emp.append(non)
 
-    if len(modules) % 2 == 1:
-        pairs.append((modules[-1],))
+    # pairs = list(zip(modules[::2], modules[1::2]))
 
+    # if len(modules) % 2 == 1:
+    #     pairs.append((modules[-1],))
+
+    pairs = emp
     max_num_pages = ceil(len(pairs) / 7)
     modulo_page = page_n % max_num_pages
 
     # can only have a certain amount of buttons side by side
     if len(pairs) > 7:
-        pairs = pairs[modulo_page * 7:7 * (modulo_page + 1)] + [
-            (EqInlineKeyboardButton("<<", callback_data="{}_prev({})".format(prefix, modulo_page)),
-             EqInlineKeyboardButton("⬅️ Back", callback_data="bot_start"),
-             EqInlineKeyboardButton(">>", callback_data="{}_next({})".format(prefix, modulo_page)))]
-    else:
-        pairs += [[EqInlineKeyboardButton("⬅️ Back", callback_data="bot_start")]]
-
+        pairs = pairs[modulo_page * 7:7 * (modulo_page + 1)] # + [
+            # (EqInlineKeyboardButton("<<<", callback_data="{}_prev({})".format(prefix, modulo_page)),
+             # EqInlineKeyboardButton(">>>", callback_data="{}_next({})".format(prefix, modulo_page)))]
 
     return pairs
 
@@ -113,14 +122,3 @@ def revert_buttons(buttons):
 
 def is_module_loaded(name):
     return (not LOAD or name in LOAD) and name not in NO_LOAD
-
-
-def user_bot_owner(func):
-    @wraps(func)
-    def is_user_bot_owner(bot: Bot, update: Update, *args, **kwargs):
-        user = update.effective_user
-        if user and user.id == OWNER_ID:
-            return func(bot, update, *args, **kwargs)
-        else:
-            pass
-    return is_user_bot_owner
